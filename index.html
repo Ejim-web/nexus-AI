@@ -3,14 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-    <title>Nexus AI – Free Assistant</title>
+    <title>Nexus AI – DeepSeek Assistant</title>
     <style>
         * { box-sizing: border-box; }
         body { font-family: system-ui; background: #0f1724; margin: 0; padding: 12px; }
         .chat-container { max-width: 800px; margin: 0 auto; background: #1e2937; border-radius: 24px; height: 95vh; display: flex; flex-direction: column; overflow: hidden; }
-        .header { padding: 16px; background: #0f1724; border-bottom: 1px solid #334155; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
+        .header { padding: 16px; background: #0f1724; text-align: center; border-bottom: 1px solid #334155; }
         .header h1 { color: white; margin: 0; font-size: 1.3rem; background: linear-gradient(135deg, #60a5fa, #a78bfa); -webkit-background-clip: text; background-clip: text; color: transparent; }
-        .header button { background: #334155; border: none; border-radius: 40px; padding: 6px 14px; color: white; cursor: pointer; font-size: 0.75rem; }
+        .header p { color: #94a3b8; font-size: 0.7rem; margin-top: 4px; }
         .messages { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
         .message { display: flex; gap: 10px; }
         .user { justify-content: flex-end; }
@@ -19,47 +19,46 @@
         .user .bubble { background: #2563eb; color: white; }
         .bot .bubble { background: #334155; color: white; }
         .input-area { padding: 16px; background: #0f1724; display: flex; gap: 8px; border-top: 1px solid #334155; }
-        input { flex: 1; padding: 10px; border-radius: 40px; border: none; background: #334155; color: white; outline: none; }
+        input { flex: 1; padding: 10px; border-radius: 40px; border: none; background: #334155; color: white; outline: none; font-size: 1rem; }
         .send-btn { background: #2563eb; border: none; border-radius: 40px; padding: 10px 20px; color: white; font-weight: bold; cursor: pointer; }
         .send-btn:disabled { background: #475569; cursor: not-allowed; }
         footer { text-align: center; font-size: 0.6rem; padding: 8px; color: #475569; }
         .status { text-align: center; font-size: 0.7rem; padding: 4px; color: #facc15; }
+        .error { color: #ef4444; }
     </style>
 </head>
 <body>
 <div class="chat-container">
     <div class="header">
         <h1>🧠 Nexus AI</h1>
-        <button id="clearBtn">Clear</button>
+        <p>Powered by OpenRouter (DeepSeek via free tier)</p>
     </div>
     <div class="messages" id="messages">
-        <div class="message bot"><div class="bubble">Hello! I'm powered by OpenRouter's free models. Ask me anything!</div></div>
+        <div class="message bot"><div class="bubble">Hello! I'm powered by DeepSeek. Ask me anything!</div></div>
     </div>
     <div class="input-area">
         <input type="text" id="input" placeholder="Type a message..." autofocus>
         <button class="send-btn" id="sendBtn">Send</button>
     </div>
-    <footer>🔒 Powered by OpenRouter free tier</footer>
+    <footer>🔒 Free assistant via OpenRouter</footer>
 </div>
 <div class="status" id="status">Ready</div>
 
 <script>
     // 🔐 PASTE YOUR OPENROUTER API KEY HERE
     const API_KEY = "YOUR_API_KEY_HERE";  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
-
-    const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
-    const YOUR_SITE_URL = "https://ejim-web.github.io/nexus-smart/"; // Change to your URL
-    const YOUR_SITE_NAME = "Nexus AI";
-
+    
+    // Your GitHub Pages URL (change this to your actual URL)
+    const YOUR_URL = "https://ejim-web.github.io/nexus-smart/";
+    
     const messagesDiv = document.getElementById('messages');
     const input = document.getElementById('input');
     const sendBtn = document.getElementById('sendBtn');
-    const clearBtn = document.getElementById('clearBtn');
     const statusDiv = document.getElementById('status');
-
+    
     let conversationHistory = [];
     let isProcessing = false;
-
+    
     function addMessage(role, text) {
         const div = document.createElement('div');
         div.className = `message ${role}`;
@@ -67,64 +66,124 @@
         messagesDiv.appendChild(div);
         div.scrollIntoView({ behavior: 'smooth', block: 'end' });
     }
-    function escapeHtml(s) { return s.replace(/[&<>]/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[m])); }
-
-    function showLoading() { const ld = document.createElement('div'); ld.className = 'message bot'; ld.id = 'loading'; ld.innerHTML = '<div class="bubble">⏳ Thinking...</div>'; messagesDiv.appendChild(ld); ld.scrollIntoView({ behavior: 'smooth', block: 'end' }); }
-    function hideLoading() { const ld = document.getElementById('loading'); if (ld) ld.remove(); }
-
+    
+    function escapeHtml(s) {
+        return s.replace(/[&<>]/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[m]));
+    }
+    
     async function sendMessage() {
         if (isProcessing) return;
         const text = input.value.trim();
         if (!text) return;
+        
+        // Add user message to chat
         addMessage('user', text);
         input.value = '';
         conversationHistory.push({ role: "user", content: text });
+        
         isProcessing = true;
         sendBtn.disabled = true;
         statusDiv.innerText = 'Thinking...';
-        showLoading();
-
+        
+        // Add loading indicator
+        const loadDiv = document.createElement('div');
+        loadDiv.className = 'message bot';
+        loadDiv.id = 'loading';
+        loadDiv.innerHTML = '<div class="bubble">⏳ Thinking...</div>';
+        messagesDiv.appendChild(loadDiv);
+        loadDiv.scrollIntoView({ behavior: 'smooth', block: 'end' });
+        
         try {
-            const response = await fetch(OPENROUTER_URL, {
+            console.log("Sending request to OpenRouter...");
+            
+            const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${API_KEY}`,
-                    'HTTP-Referer': YOUR_SITE_URL,
-                    'X-Title': YOUR_SITE_NAME
+                    'HTTP-Referer': YOUR_URL,
+                    'X-Title': 'Nexus AI'
                 },
                 body: JSON.stringify({
-                    model: "openrouter/free",
-                    messages: [{ role: "system", content: "You are Nexus AI, a helpful, friendly assistant." }, ...conversationHistory],
+                    model: "deepseek/deepseek-r1:free",
+                    messages: [
+                        { role: "system", content: "You are Nexus AI, a helpful, friendly assistant. Keep responses concise and helpful." },
+                        ...conversationHistory
+                    ],
                     temperature: 0.7,
-                    max_tokens: 800
+                    max_tokens: 500
                 })
             });
+            
             const data = await response.json();
-            hideLoading();
+            console.log("Response received:", data);
+            
+            // Remove loading indicator
+            const loading = document.getElementById('loading');
+            if (loading) loading.remove();
+            
             if (data.error) {
-                addMessage('bot', `❌ Error: ${data.error.message || 'API error'}`);
+                addMessage('bot', `❌ Error: ${data.error.message || 'Unknown error'}`);
                 statusDiv.innerText = 'Error';
-            } else {
+                console.error("API Error:", data.error);
+            } else if (data.choices && data.choices[0]) {
                 const reply = data.choices[0].message.content;
                 conversationHistory.push({ role: "assistant", content: reply });
                 addMessage('bot', reply);
                 statusDiv.innerText = 'Ready';
+            } else {
+                addMessage('bot', `❌ Unexpected response: ${JSON.stringify(data)}`);
+                statusDiv.innerText = 'Error';
             }
         } catch (err) {
-            hideLoading();
+            // Remove loading indicator
+            const loading = document.getElementById('loading');
+            if (loading) loading.remove();
+            
             addMessage('bot', `❌ Network error: ${err.message}`);
             statusDiv.innerText = 'Connection error';
+            console.error("Fetch error:", err);
         }
+        
         isProcessing = false;
         sendBtn.disabled = false;
         input.focus();
     }
-
-    function clearChat() { conversationHistory = []; while (messagesDiv.children.length > 1) messagesDiv.removeChild(messagesDiv.lastChild); addMessage('bot', 'Chat cleared.'); }
-    sendBtn.onclick = sendMessage;
+    
+    function clearChat() {
+        conversationHistory = [];
+        // Clear all messages except the first bot message
+        while (messagesDiv.children.length > 1) {
+            messagesDiv.removeChild(messagesDiv.lastChild);
+        }
+        addMessage('bot', 'Chat cleared. Ask me anything!');
+    }
+    
+    // Add clear button
+    const header = document.querySelector('.header');
+    const clearBtn = document.createElement('button');
+    clearBtn.textContent = 'Clear';
+    clearBtn.style.background = '#334155';
+    clearBtn.style.border = 'none';
+    clearBtn.style.borderRadius = '40px';
+    clearBtn.style.padding = '6px 14px';
+    clearBtn.style.color = 'white';
+    clearBtn.style.cursor = 'pointer';
+    clearBtn.style.marginTop = '8px';
     clearBtn.onclick = clearChat;
+    header.appendChild(clearBtn);
+    
+    sendBtn.onclick = sendMessage;
     input.onkeypress = (e) => { if (e.key === 'Enter') sendMessage(); };
+    
+    // Check if API key is set
+    if (API_KEY === "YOUR_API_KEY_HERE") {
+        addMessage('bot', '⚠️ Please set your OpenRouter API key in the code (replace YOUR_API_KEY_HERE with your actual key).');
+        statusDiv.innerText = 'API key missing';
+        sendBtn.disabled = true;
+    } else {
+        statusDiv.innerText = 'Ready';
+    }
 </script>
 </body>
 </html>
